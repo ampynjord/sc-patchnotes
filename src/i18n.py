@@ -81,7 +81,7 @@ ENV_BADGES = {
 
 def translate_section(name: str, lang: str) -> str:
     key = name.strip().lower()
-    for k, v in SECTIONS.items():
-        if k in key or key in k:
-            return v.get(lang, name)
+    # Exact match
+    if key in SECTIONS:
+        return SECTIONS[key].get(lang, name)
     return name
