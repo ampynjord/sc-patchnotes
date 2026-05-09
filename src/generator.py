@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime
 from typing import Dict, List
 
@@ -50,7 +51,7 @@ class ReportGenerator:
             build_info = f" — build `{n.build}`" if n.build else ""
             audience_info = f" ({n.audience})" if n.audience else ""
             lines += [
-                f"### {ENV_BADGES.get(n.environment, n.environment)} {label}{audience_info} — {date_str} {{#{anchor}}}",
+                f"### {label}{audience_info} — {date_str} {{#{anchor}}}",
                 "",
                 f"**{t['environment']}:** `{n.environment}`{audience_info}{build_info} &nbsp;&nbsp; **{t['date']}:** {date_str}",
                 "",
@@ -72,15 +73,25 @@ class ReportGenerator:
         lines.append(f"*{t['all_changes']}*")
         lines.append("")
 
+        # Sections à exclure de la synthèse (métadonnées / testing focus)
+        SYNTH_SKIP = {"ai", "general", "patch details", "audience", "testing"}
+
         consolidated: Dict[str, set] = {}
         for n in notes:
             for sec in n.sections:
                 key = translate_section(sec.name, lang)
+                if any(s in key.lower() for s in SYNTH_SKIP):
+                    continue
                 consolidated.setdefault(key, set())
                 for item in sec.items:
+                    # Dans la synthèse on déduplique les crash fixes
+                    if re.match(r'^fixed \d+', item.title, re.I):
+                        continue
                     consolidated[key].add(item.title)
 
-        for sec_name, items in consolidated.items():
+        for sec_name, items in sorted(consolidated.items()):
+            if not items:
+                continue
             lines += [f"### {sec_name}", ""]
             for item in sorted(items):
                 lines.append(f"- {item}")
@@ -123,11 +134,14 @@ class ReportGenerator:
                     {items_html}
                 </div>"""
 
+            audience_str = f" <span class='audience-tag'>{n.audience}</span>" if n.audience else ""
+            build_str = f"<span class='build-tag'>build {n.build}</span>" if n.build else ""
             iterations_html += f"""
             <div class="patch-block" id="{anchor}">
                 <div class="patch-header" style="border-left: 5px solid {color};">
                     <span class="env-badge" style="background:{color};">{badge}</span>
-                    <span class="patch-label">{label}</span>
+                    <span class="patch-label">{label}{audience_str}</span>
+                    {build_str}
                     <span class="patch-date">{date_str}</span>
                     <a href="#toc" class="back-top">{t['back_to_top']}</a>
                 </div>
@@ -137,12 +151,17 @@ class ReportGenerator:
             </div>"""
 
         # Synthesis
+        SYNTH_SKIP = {"ai", "general", "patch details", "audience", "testing"}
         consolidated: Dict[str, set] = {}
         for n in notes:
             for sec in n.sections:
                 key = translate_section(sec.name, lang)
+                if any(s in key.lower() for s in SYNTH_SKIP):
+                    continue
                 consolidated.setdefault(key, set())
                 for item in sec.items:
+                    if re.match(r'^fixed \d+', item.title, re.I):
+                        continue
                     consolidated[key].add(item.title)
 
         synth_html = ""
@@ -206,9 +225,11 @@ class ReportGenerator:
 
   /* Patch block */
   .patch-block {{ background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1.5rem; overflow: hidden; }}
-  .patch-header {{ display: flex; align-items: center; gap: 1rem; padding: 1rem 1.5rem; background: var(--bg3); flex-wrap: wrap; }}
+  .patch-header {{ display: flex; align-items: center; gap: 0.7rem; padding: 1rem 1.5rem; background: var(--bg3); flex-wrap: wrap; }}
   .env-badge {{ padding: 0.2rem 0.7rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; color: #fff; }}
   .patch-label {{ font-size: 1.1rem; font-weight: 600; color: #fff; }}
+  .audience-tag {{ font-size: 0.8rem; font-weight: 400; color: var(--text-muted); }}
+  .build-tag {{ font-size: 0.75rem; color: var(--text-muted); font-family: monospace; background: var(--bg); padding: 0.1rem 0.4rem; border-radius: 4px; }}
   .patch-date {{ color: var(--text-muted); font-size: 0.9rem; margin-left: auto; }}
   .back-top {{ font-size: 0.8rem; color: var(--text-muted); }}
   .patch-content {{ padding: 1.5rem; }}
