@@ -1,0 +1,7 @@
+{
+  "token": "COLLE_TON_TOKEN_ICI",
+  "channel_id": "585952222853201941",
+  "max_messages": 5000,
+  "output_dir": "reports",
+  "data_dir": "data"
+}
