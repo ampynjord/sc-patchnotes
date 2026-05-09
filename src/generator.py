@@ -290,21 +290,28 @@ class ReportGenerator:
     #  ENTRY POINT                                                         #
     # ------------------------------------------------------------------ #
 
-    def generate(self, notes_by_version: Dict[str, List[PatchNote]], version: str):
+    def generate(
+        self,
+        notes_by_version: Dict[str, List[PatchNote]],
+        version: str,
+        env_filter: List[str] = None,
+    ):
         version_dir = os.path.join(self.output_dir, version)
         os.makedirs(version_dir, exist_ok=True)
 
         version_notes = notes_by_version.get(version, [])
+        if env_filter:
+            version_notes = [n for n in version_notes if n.environment.upper() in env_filter]
 
         for lang in ("en", "fr"):
             md = self._md_report(version_notes, version, lang)
             md_path = os.path.join(version_dir, f"report_{lang}.md")
             with open(md_path, "w", encoding="utf-8") as f:
                 f.write(md)
-            print(f"  ✓ {md_path}")
+            print(f"  OK {md_path}")
 
             html = self._html_report(version_notes, version, lang)
             html_path = os.path.join(version_dir, f"report_{lang}.html")
             with open(html_path, "w", encoding="utf-8") as f:
                 f.write(html)
-            print(f"  ✓ {html_path}")
+            print(f"  OK {html_path}")
