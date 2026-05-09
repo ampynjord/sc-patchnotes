@@ -47,10 +47,12 @@ class ReportGenerator:
             label = t["patch_label"].format(env=n.environment, num=n.iteration)
             date_str = n.date[:10] if n.date else "?"
 
+            build_info = f" — build `{n.build}`" if n.build else ""
+            audience_info = f" ({n.audience})" if n.audience else ""
             lines += [
-                f"### {ENV_BADGES.get(n.environment, n.environment)} {label} — {date_str} {{#{anchor}}}",
+                f"### {ENV_BADGES.get(n.environment, n.environment)} {label}{audience_info} — {date_str} {{#{anchor}}}",
                 "",
-                f"**{t['environment']}:** `{n.environment}` &nbsp;&nbsp; **{t['date']}:** {date_str}",
+                f"**{t['environment']}:** `{n.environment}`{audience_info}{build_info} &nbsp;&nbsp; **{t['date']}:** {date_str}",
                 "",
             ]
 
