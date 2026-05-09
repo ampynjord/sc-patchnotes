@@ -49,7 +49,16 @@ class PatchNotesParser:
     RE_META_ITEM = re.compile(
         r'^(?:audience|server info|long term persistence|ltp|'
         r'patch channel|us only|eu only|atv|build number|'
-        r'\d+ known issues?|potential fix)',
+        r'\d+ known issues?|potential fix|'
+        r'testing[/ ]feedback|not ready for testing|'
+        r'stability[,\s]|wave \d|all waves|all backers|evocati|'
+        r'https?://|http://)',
+        re.I
+    )
+
+    # Préfixe de section header Discord brut à ignorer entièrement
+    RE_PATCH_HEADER_SEC = re.compile(
+        r'^(?:star citizen alpha patch|alpha patch \d)',
         re.I
     )
 
@@ -155,6 +164,11 @@ class PatchNotesParser:
                 flush_section()
                 sec_name = m_sec.group(1).strip()
                 sec_lower = sec_name.lower()
+                # Ignorer les sections d'entête Discord brutes
+                if self.RE_PATCH_HEADER_SEC.match(sec_name):
+                    skip = True
+                    current_section = PatchSection(name=sec_name)
+                    continue
                 is_game = any(k in sec_lower for k in self.GAME_KEYWORDS)
                 is_meta = any(k in sec_lower for k in self.SKIP_KEYWORDS)
                 skip = is_meta and not is_game
@@ -173,6 +187,11 @@ class PatchNotesParser:
                 # Ignorer les items qui sont des métadonnées de patch
                 if self.RE_META_ITEM.match(title):
                     continue
+                # Ignorer les items qui sont des sous-tirets imbriqués (- - Titre)
+                if title.startswith("- "):
+                    title = title.lstrip("- ").strip()
+                    if not title:
+                        continue
                 if current_section is None:
                     current_section = PatchSection(name="General")
                 current_title = title

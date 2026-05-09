@@ -6,6 +6,23 @@ from typing import Dict, List
 from .parser import PatchNote
 from .i18n import LABELS, ENV_COLORS, ENV_BADGES, translate_section
 
+_RE_NOISE = re.compile(
+    r'^(?:fixed \d+|'                        # crash count lines
+    r'https?://|'                             # URLs
+    r'audience:|server info:|long term|'     # metadata prefixes
+    r'alpha patch \d|patch should now|'      # version announcements
+    r'testing[/ ]feedback|not ready for|'    # test metadata
+    r'stability[,\s]|wave \d|all waves|'     # audience tags
+    r'server info:|us only|eu only|'         # server metadata
+    r'known issues?$|'                       # bare section headers leaking in
+    r'▲\s)',                                  # RSI bullet decorators
+    re.I,
+)
+
+
+def _is_synth_noise(title: str) -> bool:
+    return bool(_RE_NOISE.match(title.strip()))
+
 
 class ReportGenerator:
     def __init__(self, output_dir: str = "reports"):
@@ -74,7 +91,11 @@ class ReportGenerator:
         lines.append("")
 
         # Sections à exclure de la synthèse (métadonnées / testing focus)
-        SYNTH_SKIP = {"ai", "general", "patch details", "audience", "testing"}
+        SYNTH_SKIP = {
+            "ai", "general", "patch details", "audience", "testing",
+            "star citizen alpha patch", "alpha patch",
+            "known issues", "not ready", "stability",
+        }
 
         consolidated: Dict[str, set] = {}
         for n in notes:
@@ -84,10 +105,10 @@ class ReportGenerator:
                     continue
                 consolidated.setdefault(key, set())
                 for item in sec.items:
-                    # Dans la synthèse on déduplique les crash fixes
-                    if re.match(r'^fixed \d+', item.title, re.I):
+                    t = item.title
+                    if _is_synth_noise(t):
                         continue
-                    consolidated[key].add(item.title)
+                    consolidated[key].add(t)
 
         for sec_name, items in sorted(consolidated.items()):
             if not items:
@@ -151,7 +172,11 @@ class ReportGenerator:
             </div>"""
 
         # Synthesis
-        SYNTH_SKIP = {"ai", "general", "patch details", "audience", "testing"}
+        SYNTH_SKIP = {
+            "ai", "general", "patch details", "audience", "testing",
+            "star citizen alpha patch", "alpha patch",
+            "known issues", "not ready", "stability",
+        }
         consolidated: Dict[str, set] = {}
         for n in notes:
             for sec in n.sections:
@@ -160,12 +185,14 @@ class ReportGenerator:
                     continue
                 consolidated.setdefault(key, set())
                 for item in sec.items:
-                    if re.match(r'^fixed \d+', item.title, re.I):
+                    if _is_synth_noise(item.title):
                         continue
                     consolidated[key].add(item.title)
 
         synth_html = ""
-        for sec_name, items in consolidated.items():
+        for sec_name, items in sorted(consolidated.items()):
+            if not items:
+                continue
             items_li = "".join(f"<li>{i}</li>" for i in sorted(items))
             synth_html += f"""
             <div class="section">
@@ -303,15 +330,19 @@ class ReportGenerator:
         if env_filter:
             version_notes = [n for n in version_notes if n.environment.upper() in env_filter]
 
+        # Build filename suffix: report_4.8.0_en.md or report_4.8.0_LIVE_en.md
+        env_suffix = ("-" + "-".join(sorted(env_filter))) if env_filter else ""
+        base = f"report_{version}{env_suffix}"
+
         for lang in ("en", "fr"):
             md = self._md_report(version_notes, version, lang)
-            md_path = os.path.join(version_dir, f"report_{lang}.md")
+            md_path = os.path.join(version_dir, f"{base}_{lang}.md")
             with open(md_path, "w", encoding="utf-8") as f:
                 f.write(md)
             print(f"  OK {md_path}")
 
             html = self._html_report(version_notes, version, lang)
-            html_path = os.path.join(version_dir, f"report_{lang}.html")
+            html_path = os.path.join(version_dir, f"{base}_{lang}.html")
             with open(html_path, "w", encoding="utf-8") as f:
                 f.write(html)
             print(f"  OK {html_path}")
