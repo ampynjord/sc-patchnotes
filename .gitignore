@@ -1,0 +1,16 @@
+# Token Discord — NE JAMAIS COMMITER
+config.json
+
+# Cache des messages bruts (peut être lourd)
+data/
+
+# Rapports générés
+reports/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
