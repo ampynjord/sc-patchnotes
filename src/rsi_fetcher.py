@@ -1,6 +1,7 @@
+import html as htmlmod
 import re
-import time
 import requests
+from html.parser import HTMLParser
 from typing import Optional
 from .parser import PatchNote, PatchSection, PatchItem
 
@@ -170,11 +171,149 @@ class RSIFetcher:
         flush_section()
         return sections
 
+    # ------------------------------------------------------------------ #
+    #  COMM-LINK SUPPORT                                                  #
+    # ------------------------------------------------------------------ #
+
+    def _fetch_commlink_s3(self, page_url: str) -> Optional[str]:
+        """Fetches the S3 HTML content for an RSI comm-link page."""
+        try:
+            r = self.session.get(page_url, timeout=15)
+            r.raise_for_status()
+            m = re.search(r"const s3Url\s*=\s*'([^']+)'", r.text)
+            if not m:
+                return None
+            s3_url = m.group(1)
+            r2 = self.session.get(s3_url, timeout=15)
+            r2.raise_for_status()
+            return r2.text
+        except Exception as e:
+            print(f"  [RSI] Comm-link fetch error: {e}")
+            return None
+
+    def _parse_inner_html(self, raw_html: str) -> list[PatchItem]:
+        """
+        Parses the inner HTML of a comm-link content block into PatchItems.
+        h2/h3 (with optional <u>) → item title
+        li → item title
+        p → description appended to current item
+        """
+        items: list[PatchItem] = []
+        current_title: Optional[str] = None
+        current_desc: list[str] = []
+
+        def flush():
+            nonlocal current_title, current_desc
+            if current_title:
+                items.append(PatchItem(
+                    title=current_title,
+                    description=" ".join(current_desc).strip(),
+                ))
+            current_title = None
+            current_desc = []
+
+        class _P(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.tag = None
+                self.buf = []
+
+            def handle_starttag(self, tag, attrs):
+                self.tag = tag
+                self.buf = []
+
+            def handle_data(self, data):
+                self.buf.append(data)
+
+            def handle_endtag(self, tag):
+                text = "".join(self.buf).strip()
+                self.buf = []
+                if not text:
+                    return
+                if tag in ("h2", "h3", "h4"):
+                    flush()
+                    current_title = text
+                elif tag == "li":
+                    flush()
+                    current_title = text
+                elif tag == "p":
+                    if current_title:
+                        current_desc.append(text)
+                    else:
+                        current_title = text
+                self.tag = None
+
+        # We need closure access — use a simple regex-based approach instead
+        tags = re.split(r'(<[^>]+>)', raw_html)
+        current_tag = None
+        buf = []
+
+        for part in tags:
+            if part.startswith("</"):
+                # closing tag
+                tag = re.sub(r'[<>/\s]', '', part).lower()
+                text = "".join(buf).strip()
+                buf = []
+                if not text:
+                    continue
+                if tag in ("h2", "h3", "h4", "strong", "u") and current_tag in ("h2", "h3", "h4"):
+                    flush()
+                    current_title = text
+                elif tag in ("h2", "h3", "h4"):
+                    flush()
+                    current_title = text
+                elif tag == "li":
+                    flush()
+                    current_title = text
+                elif tag == "p":
+                    if current_title is not None:
+                        current_desc.append(text)
+                    else:
+                        current_title = text
+                current_tag = None
+            elif part.startswith("<"):
+                tag = re.match(r'<([a-z0-9]+)', part, re.I)
+                if tag:
+                    current_tag = tag.group(1).lower()
+            else:
+                buf.append(part)
+
+        flush()
+        return items
+
+    def parse_comm_link_blocks(self, s3_content: str) -> list[PatchSection]:
+        """
+        Parses RSI comm-link S3 HTML (Vue component props) into PatchSections.
+        Each title+content JSON pair becomes a PatchSection.
+        """
+        SKIP_TITLES = {"known issues", "testing", "feedback"}
+        decoded = htmlmod.unescape(s3_content)
+
+        pairs = re.findall(r'"title":"([^"]+)","content":"(<[^"]+)"', decoded)
+        if not pairs:
+            return []
+
+        sections: list[PatchSection] = []
+        for title, raw_html in pairs:
+            if any(s in title.lower() for s in SKIP_TITLES):
+                continue
+            items = self._parse_inner_html(raw_html)
+            if items:
+                sections.append(PatchSection(name=title, items=items))
+
+        return sections
+
     def enrich_patch_note(self, note: PatchNote, url: str) -> bool:
         """
         Remplace les sections d'un PatchNote par le contenu complet RSI.
+        Supporte les threads Spectrum (/spectrum/) et les comm-links (/comm-link/).
         Retourne True si l'enrichissement a réussi.
         """
+        if "/comm-link/" in url:
+            return self._enrich_from_comm_link(note, url)
+        return self._enrich_from_spectrum(note, url)
+
+    def _enrich_from_spectrum(self, note: PatchNote, url: str) -> bool:
         slug = self.slug_from_url(url)
         if not slug:
             return False
@@ -192,6 +331,19 @@ class RSIFetcher:
             return False
 
         sections = self.parse_blocks(blocks)
+        if sections:
+            note.sections = sections
+            return True
+
+        return False
+
+    def _enrich_from_comm_link(self, note: PatchNote, url: str) -> bool:
+        self._ensure_token()
+        s3_content = self._fetch_commlink_s3(url)
+        if not s3_content:
+            return False
+
+        sections = self.parse_comm_link_blocks(s3_content)
         if sections:
             note.sections = sections
             return True
