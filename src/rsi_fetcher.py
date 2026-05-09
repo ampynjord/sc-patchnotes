@@ -191,92 +191,97 @@ class RSIFetcher:
             print(f"  [RSI] Comm-link fetch error: {e}")
             return None
 
+    @staticmethod
+    def _first_sentences(text: str, max_chars: int = 350) -> str:
+        """Truncate to the first sentence(s) up to max_chars."""
+        if len(text) <= max_chars:
+            return text
+        cut = text[:max_chars]
+        last_dot = cut.rfind('. ')
+        if last_dot > max_chars // 3:
+            return cut[:last_dot + 1]
+        return cut.rstrip() + '…'
+
     def _parse_inner_html(self, raw_html: str) -> list[PatchItem]:
         """
         Parses the inner HTML of a comm-link content block into PatchItems.
-        h2/h3 (with optional <u>) → item title
-        li → item title
-        p → description appended to current item
+
+        Strategy:
+          1. Strip all inline formatting tags (<u>, <strong>, <em>, <span>…)
+             so h3/li/p boundaries are unambiguous.
+          2. Walk structural tokens: h2/h3/h4 → item title, li → item title,
+             p → short description (truncated to ~2 sentences).
         """
+        STRUCTURAL = re.compile(r'^/?(?:h[1-4]|p|ul|ol|li|br)\b', re.I)
+
+        # Remove inline-only tags (keep their text content)
+        cleaned = re.sub(
+            r'</?(?:u|strong|em|b|i|span|a|code)[^>]*>',
+            '',
+            raw_html,
+            flags=re.I,
+        )
+
         items: list[PatchItem] = []
         current_title: Optional[str] = None
         current_desc: list[str] = []
+        buf: list[str] = []
 
         def flush():
             nonlocal current_title, current_desc
             if current_title:
+                desc = self._first_sentences(" ".join(current_desc).strip())
                 items.append(PatchItem(
-                    title=current_title,
-                    description=" ".join(current_desc).strip(),
+                    title=current_title.strip(),
+                    description=desc,
                 ))
             current_title = None
             current_desc = []
 
-        class _P(HTMLParser):
-            def __init__(self):
-                super().__init__()
-                self.tag = None
-                self.buf = []
+        def take_buf() -> str:
+            text = re.sub(r'\s+', ' ', ''.join(buf)).strip()
+            buf.clear()
+            return text
 
-            def handle_starttag(self, tag, attrs):
-                self.tag = tag
-                self.buf = []
+        for part in re.split(r'(<[^>]+>)', cleaned):
+            if not part:
+                continue
 
-            def handle_data(self, data):
-                self.buf.append(data)
+            m = re.match(r'<(/?)([a-z0-9]+)', part, re.I)
+            if not m:
+                buf.append(part)
+                continue
 
-            def handle_endtag(self, tag):
-                text = "".join(self.buf).strip()
-                self.buf = []
-                if not text:
-                    return
-                if tag in ("h2", "h3", "h4"):
-                    flush()
-                    current_title = text
-                elif tag == "li":
-                    flush()
-                    current_title = text
-                elif tag == "p":
-                    if current_title:
-                        current_desc.append(text)
-                    else:
-                        current_title = text
-                self.tag = None
+            closing = m.group(1) == '/'
+            tag = m.group(2).lower()
 
-        # We need closure access — use a simple regex-based approach instead
-        tags = re.split(r'(<[^>]+>)', raw_html)
-        current_tag = None
-        buf = []
+            if not STRUCTURAL.match(('/' if closing else '') + tag):
+                # Non-structural tag remnant (shouldn't exist after strip, safety)
+                continue
 
-        for part in tags:
-            if part.startswith("</"):
-                # closing tag
-                tag = re.sub(r'[<>/\s]', '', part).lower()
-                text = "".join(buf).strip()
-                buf = []
+            if not closing:
+                # Opening structural tag: flush any stray text in buf
+                stray = take_buf()
+                if stray and current_title is None:
+                    current_title = stray
+                elif stray and current_title is not None:
+                    current_desc.append(self._first_sentences(stray))
+            else:
+                text = take_buf()
                 if not text:
                     continue
-                if tag in ("h2", "h3", "h4", "strong", "u") and current_tag in ("h2", "h3", "h4"):
+                if tag in ('h1', 'h2', 'h3', 'h4'):
                     flush()
                     current_title = text
-                elif tag in ("h2", "h3", "h4"):
+                elif tag == 'li':
                     flush()
                     current_title = text
-                elif tag == "li":
-                    flush()
-                    current_title = text
-                elif tag == "p":
+                elif tag == 'p':
+                    short = self._first_sentences(text)
                     if current_title is not None:
-                        current_desc.append(text)
+                        current_desc.append(short)
                     else:
-                        current_title = text
-                current_tag = None
-            elif part.startswith("<"):
-                tag = re.match(r'<([a-z0-9]+)', part, re.I)
-                if tag:
-                    current_tag = tag.group(1).lower()
-            else:
-                buf.append(part)
+                        current_title = short
 
         flush()
         return items
