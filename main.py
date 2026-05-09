@@ -19,6 +19,7 @@ import sys
 from src.fetcher import DiscordFetcher
 from src.parser import PatchNotesParser
 from src.generator import ReportGenerator
+from src.rsi_fetcher import RSIFetcher
 
 
 def load_config(path="config.json") -> dict:
@@ -70,6 +71,51 @@ def cmd_list(cfg: dict):
             envs[n.environment] = envs.get(n.environment, 0) + 1
         summary = "  ".join(f"{env}: {count}" for env, count in sorted(envs.items()))
         print(f"  {version}  →  {summary}  ({len(notes)} patches)")
+
+
+def cmd_enrich(cfg: dict, version: str):
+    """Enrichit les patches avec le contenu complet depuis RSI Spectrum."""
+    messages = load_raw_messages(cfg["data_dir"])
+    parser = PatchNotesParser()
+    grouped = parser.parse_all(messages, version_filter=version)
+
+    if version not in grouped:
+        print(f"[ERREUR] Version {version} introuvable.")
+        sys.exit(1)
+
+    notes = grouped[version]
+    rsi = RSIFetcher()
+    enriched = 0
+
+    for note in notes:
+        if not note.rsi_url:
+            print(f"  [{note.environment} #{note.iteration}] Pas d'URL RSI — skip")
+            continue
+        print(f"  [{note.environment} #{note.iteration}] {note.rsi_url[:80]}...")
+        ok = rsi.enrich_patch_note(note, note.rsi_url)
+        if ok:
+            enriched += 1
+            sec_count = len(note.sections)
+            item_count = sum(len(s.items) for s in note.sections)
+            print(f"    → {sec_count} sections, {item_count} items")
+        else:
+            print(f"    → Échec de l'enrichissement")
+        import time; time.sleep(0.8)
+
+    print(f"\n{enriched}/{len(notes)} patches enrichis depuis RSI.")
+
+    # Sauvegarder le cache enrichi
+    enriched_path = os.path.join(cfg["data_dir"], f"enriched_{version}.json")
+    import json, dataclasses
+    with open(enriched_path, "w", encoding="utf-8") as f:
+        json.dump([dataclasses.asdict(n) for n in notes], f, ensure_ascii=False, indent=2)
+    print(f"Cache enrichi sauvegardé : {enriched_path}")
+
+    # Générer les rapports
+    generator = ReportGenerator(output_dir=cfg["output_dir"])
+    print(f"\nGénération des rapports enrichis pour la version {version}...")
+    generator.generate(grouped, version)
+    print(f"Rapports générés dans : {cfg['output_dir']}/{version}/")
 
 
 def cmd_generate(cfg: dict, version: str):
@@ -125,6 +171,9 @@ def main():
 
     sub.add_parser("all", help="Génère les rapports pour toutes les versions")
 
+    enr = sub.add_parser("enrich", help="Enrichit avec le contenu complet RSI + génère les rapports")
+    enr.add_argument("version", help="Numéro de version (ex: 4.8.0)")
+
     args = ap.parse_args()
     cfg = load_config()
 
@@ -139,6 +188,8 @@ def main():
         cmd_generate(cfg, args.version)
     elif args.cmd == "all":
         cmd_all(cfg)
+    elif args.cmd == "enrich":
+        cmd_enrich(cfg, args.version)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ class PatchNote:
     message_id: str
     sections: List[PatchSection] = field(default_factory=list)
     raw_content: str = ""
+    rsi_url: str = ""   # URL vers le thread Spectrum complet
 
 
 class PatchNotesParser:
@@ -184,6 +185,14 @@ class PatchNotesParser:
         flush_section()
         return sections
 
+    def _embed_url(self, message: dict) -> str:
+        """Retourne l'URL RSI de l'embed (lien vers le thread Spectrum complet)."""
+        for embed in message.get("embeds", []):
+            url = embed.get("url", "")
+            if url and "robertsspaceindustries.com" in url:
+                return url
+        return ""
+
     def parse_message(self, message: dict) -> Optional[PatchNote]:
         # Filtrer : seulement NewsBot
         if message.get("author", {}).get("id") != NEWSBOT_ID:
@@ -216,6 +225,7 @@ class PatchNotesParser:
             message_id=message.get("id", ""),
             sections=self.parse_sections(embed_desc),
             raw_content=embed_desc,
+            rsi_url=self._embed_url(message),
         )
 
     def parse_all(
