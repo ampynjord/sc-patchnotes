@@ -30,6 +30,7 @@ class PatchNote:
     sections: List[PatchSection] = field(default_factory=list)
     raw_content: str = ""
     rsi_url: str = ""   # URL vers le thread Spectrum complet
+    ltp_status: str = ""  # Long Term Persistence info extracted from embed
 
 
 class PatchNotesParser:
@@ -68,6 +69,24 @@ class PatchNotesParser:
         "testing", "feedback focus", "known issues",
         "note for tonight", "note:", "important:",
     ]
+
+    # LTP extraction: catches lines like "➣ Long Term Persistence: Complete Wipe"
+    RE_LTP_LINE = re.compile(
+        r'^(?:➣|->|=>|[•])?\s*(?:long.?term.?persistence|ltp)\s*:?\s*(.+)',
+        re.I,
+    )
+    # French LTP patterns from announcement channels
+    RE_LTP_WIPE_ANN = re.compile(
+        r'(?:wipe|effacement|réinitialisation|reset|clear).{0,40}(?:ltp|persistence)|'
+        r'ltp.{0,40}(?:wipe|effacement|reset|complet)|'
+        r'(?:complet(?:e)?|full|total).{0,20}(?:wipe|reset)',
+        re.I,
+    )
+    RE_NO_WIPE_ANN = re.compile(
+        r'(?:pas|no|aucun|sans)\s+(?:de\s+)?(?:wipe|reset|effacement)|'
+        r'ltp.{0,20}(?:persist(?:e|é)|intact|conserv)',
+        re.I,
+    )
 
     # Sections de contenu de jeu valides → toujours garder même si courtes
     GAME_KEYWORDS = [
@@ -204,6 +223,14 @@ class PatchNotesParser:
         flush_section()
         return sections
 
+    def _extract_ltp_from_text(self, text: str) -> str:
+        """Extract Long Term Persistence status from raw embed text."""
+        for line in text.split("\n"):
+            m = self.RE_LTP_LINE.match(line.strip())
+            if m:
+                return m.group(1).strip()
+        return ""
+
     def _embed_url(self, message: dict) -> str:
         """Retourne l'URL RSI de l'embed (lien vers le thread Spectrum complet)."""
         for embed in message.get("embeds", []):
@@ -245,15 +272,28 @@ class PatchNotesParser:
             sections=self.parse_sections(embed_desc),
             raw_content=embed_desc,
             rsi_url=self._embed_url(message),
+            ltp_status=self._extract_ltp_from_text(embed_desc),
         )
 
     def parse_all(
-        self, messages: list, version_filter: str = None
+        self,
+        messages: list,
+        version_filter: str = None,
+        announcement_channel_ids: set = None,
     ) -> Dict[str, List[PatchNote]]:
         """Parse tous les messages et groupe par version majeure."""
         grouped: Dict[str, List[PatchNote]] = {}
+        ann_ids = announcement_channel_ids or set()
+
+        # Separate announcement messages for supplementary LTP scanning
+        announcement_messages = [
+            m for m in messages if m.get("_channel_id") in ann_ids
+        ] if ann_ids else []
 
         for msg in messages:
+            # Skip announcement channel messages — not structured patch notes
+            if msg.get("_channel_id") in ann_ids:
+                continue
             note = self.parse_message(msg)
             if not note:
                 continue
@@ -268,5 +308,29 @@ class PatchNotesParser:
             for note in notes:
                 counters[note.environment] = counters.get(note.environment, 0) + 1
                 note.iteration = counters[note.environment]
+
+        # Enrich LTP status from announcement channel (Nicou / CIG staff) if not found in embed
+        if announcement_messages:
+            for notes in grouped.values():
+                for note in notes:
+                    if note.ltp_status:
+                        continue  # already extracted from newsbot embed
+                    version_short = note.version.rsplit(".", 1)[0]
+                    for ann in announcement_messages:
+                        text = ann.get("content", "") or ""
+                        if not text:
+                            continue
+                        has_version = (
+                            (note.build and note.build in text)
+                            or (version_short in text and note.environment.upper() in text.upper())
+                        )
+                        if not has_version:
+                            continue
+                        if self.RE_NO_WIPE_ANN.search(text):
+                            note.ltp_status = "Persistence enabled — no wipe"
+                        elif self.RE_LTP_WIPE_ANN.search(text):
+                            note.ltp_status = text[:200].replace("\n", " ").strip()
+                        if note.ltp_status:
+                            break
 
         return grouped

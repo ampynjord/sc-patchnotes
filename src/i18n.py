@@ -13,6 +13,18 @@ LABELS = {
         "total_patches": "Total patches",
         "back_to_top": "↑ Back to top",
         "all_changes": "All consolidated changes",
+        "roadmap_overview": "Roadmap Overview",
+        "roadmap_desc": "Features tracked on the official roadmap — may not reflect all changes in this release",
+        "patch_history": "Patch History",
+        "synthesis_nav": "Final Synthesis",
+        "entries": "entries",
+        "committed_label": "COMMITTED",
+        "tentative_label": "TENTATIVE",
+        "released_label": "RELEASED",
+        "no_data": "No data available.",
+        "nav_roadmap": "Roadmap Overview",
+        "nav_patches": "Patch History",
+        "nav_synthesis": "Final Synthesis",
     },
     "fr": {
         "report_title": "Star Citizen {version} — Rapport des Patch Notes",
@@ -28,6 +40,18 @@ LABELS = {
         "total_patches": "Total des patches",
         "back_to_top": "↑ Retour en haut",
         "all_changes": "Tous les changements consolidés",
+        "roadmap_overview": "Aperçu Roadmap",
+        "roadmap_desc": "Fonctionnalités suivies sur la roadmap officielle — liste non exhaustive, ne reflète pas tous les changements",
+        "patch_history": "Historique des Patches",
+        "synthesis_nav": "Synthèse Finale",
+        "entries": "entrées",
+        "committed_label": "ENGAGÉ",
+        "tentative_label": "PRÉVISIONNEL",
+        "released_label": "DÉPLOYÉ",
+        "no_data": "Aucune donnée disponible.",
+        "nav_roadmap": "Aperçu Roadmap",
+        "nav_patches": "Historique Patches",
+        "nav_synthesis": "Synthèse Finale",
     },
 }
 
@@ -48,6 +72,7 @@ SECTIONS = {
     "general":               {"en": "General",              "fr": "Général"},
     "ui":                    {"en": "User Interface",       "fr": "Interface Utilisateur"},
     "missions":              {"en": "Missions",             "fr": "Missions"},
+    "missions and events":   {"en": "Missions & Events",    "fr": "Missions & Événements"},
     "economy":               {"en": "Economy",              "fr": "Économie"},
     "environment":           {"en": "Environment",          "fr": "Environnement"},
     "network":               {"en": "Network",              "fr": "Réseau"},
@@ -65,17 +90,19 @@ SECTIONS = {
 }
 
 ENV_COLORS = {
-    "LIVE":    "#2ecc71",
-    "PTU":     "#3498db",
-    "EPTU":    "#e67e22",
-    "UNKNOWN": "#95a5a6",
+    "LIVE":     "#00c853",
+    "PTU":      "#0288d1",
+    "EPTU":     "#ff8f00",
+    "EVOCATI":  "#9c27b0",
+    "UNKNOWN":  "#546e7a",
 }
 
 ENV_BADGES = {
-    "LIVE":    "🟢 LIVE",
-    "PTU":     "🔵 PTU",
-    "EPTU":    "🟠 EPTU",
-    "UNKNOWN": "⚪ ?",
+    "LIVE":    "LIVE",
+    "PTU":     "PTU",
+    "EPTU":    "EPTU",
+    "EVOCATI": "EVOCATI",
+    "UNKNOWN": "?",
 }
 
 

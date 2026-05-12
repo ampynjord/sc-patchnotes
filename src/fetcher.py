@@ -46,6 +46,8 @@ class DiscordFetcher:
             if not batch:
                 break
 
+            for msg in batch:
+                msg["_channel_id"] = self.channel_id
             all_messages.extend(batch)
             before = batch[-1]["id"]
             print(f"  {len(all_messages)} messages récupérés...", end="\r")
