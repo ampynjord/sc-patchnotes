@@ -1,7 +1,13 @@
 {
   "token": "COLLE_TON_TOKEN_ICI",
-  "channel_id": "585952222853201941",
-  "max_messages": 5000,
+  "channel_ids": ["585952222853201941", "564248916061847575"],
+  "announcement_channel_ids": ["1206728353248444427"],
+  "max_messages": 10000,
   "output_dir": "reports",
-  "data_dir": "data"
+  "data_dir": "data",
+  "event_urls": {
+    "4.8.0": [
+      "https://robertsspaceindustries.com/comm-link/transmission/21129-DefenseCon-2956-Schedule"
+    ]
+  }
 }

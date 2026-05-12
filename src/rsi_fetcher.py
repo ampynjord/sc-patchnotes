@@ -14,7 +14,14 @@ SKIP_HEADERS = {
     "testing/feedback focus", "testing focus",
     "audience and server details", "audience & server details",
     "patch details",
+    "not ready for testing/feedback", "not ready for testing",
+    "not ready for testing / feedback",
+    "known issues", "known issue",
+    "important notes",
 }
+
+# Préfixes de section-titre (header-one/two) à ignorer
+_SKIP_PREFIXES = ("star citizen alpha patch",)
 
 
 class RSIFetcher:
@@ -106,7 +113,13 @@ class RSIFetcher:
             flush_item()
             flush_section()
             current_section = PatchSection(name=name)
-            skip = is_skip
+            low = name.strip().lower()
+            is_meta = (
+                is_skip
+                or low in SKIP_HEADERS
+                or any(low.startswith(p) for p in _SKIP_PREFIXES)
+            )
+            skip = is_meta
 
         for block in blocks:
             btype = block.get("type", "")
@@ -127,7 +140,8 @@ class RSIFetcher:
 
             # ── Sous-section (blockquote = Gameplay, Ships & Vehicles…) ─────
             if btype == "blockquote":
-                start_section(text, is_skip=False)
+                is_meta = text.strip().lower() in SKIP_HEADERS
+                start_section(text, is_skip=is_meta)
                 continue
 
             if skip:
@@ -148,8 +162,13 @@ class RSIFetcher:
             if btype == "unstyled":
                 is_bold = self._is_bold(block)
 
-                # Texte court et gras → probablement un titre d'item
+                # Texte court et gras → sous-header métadata ou titre d'item
                 if is_bold and len(text) < 120:
+                    # Sous-headers de métadata → activer le skip
+                    if text.strip().lower() in SKIP_HEADERS:
+                        flush_item()
+                        skip = True
+                        continue
                     flush_item()
                     if current_section is None:
                         current_section = PatchSection(name="General")
