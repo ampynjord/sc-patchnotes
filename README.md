@@ -1,25 +1,25 @@
 # 🚀 SC Patch Notes — Star Citizen Report Generator
 
-Outil CLI Python qui récupère les patch notes du canal Discord **sc-patch-notes** (`/r/starcitizen`) et génère des rapports complets et organisés pour chaque version majeure du jeu.
+Python CLI tool that fetches the patch notes from the **sc-patch-notes** Discord channel (`/r/starcitizen`) and generates complete, organized reports for each major version of the game.
 
 ---
 
-## Fonctionnalités
+## Features
 
-- **Fetch automatique** de l'historique du canal Discord (PTU, EPTU, LIVE)
-- **Parsing intelligent** des sections : Gameplay, Ships & Vehicles, Weapons & Items, Core Tech, Bugfixes…
-- **Rapport par itération** : chaque patch PTU/EPTU documenté séparément
-- **Synthèse finale** consolidée de tous les changements de la version
-- **4 fichiers générés** par version : Markdown + HTML, en français et en anglais
-- **Thème sombre** pour les rapports HTML
-- Compatible avec toutes les versions futures (4.9.0, 4.10.0, etc.)
+- **Automatic fetch** of the channel history (PTU, EPTU, LIVE)
+- **Smart parsing** of sections: Gameplay, Ships & Vehicles, Weapons & Items, Core Tech, Bugfixes...
+- **One report per iteration**: each PTU/EPTU patch documented separately
+- **Consolidated final summary** of all changes in the version
+- **4 files generated** per version: Markdown + HTML, in French and English
+- **Dark theme** for HTML reports
+- Compatible with all future versions (4.9.0, 4.10.0, etc.)
 
 ---
 
-## Prérequis
+## Requirements
 
 - Python 3.9+
-- Un compte membre du serveur Discord `/r/starcitizen`
+- An account that is a member of the `/r/starcitizen` Discord server
 
 ---
 
@@ -35,17 +35,17 @@ pip install -r requirements.txt
 
 ## Configuration
 
-Copie le fichier de config et renseigne ton token Discord :
+Copy the config file and fill in your Discord token:
 
 ```bash
 cp config.json.example config.json
 ```
 
-Ouvre `config.json` :
+Open `config.json`:
 
 ```json
 {
-  "token": "COLLE_TON_TOKEN_ICI",
+  "token": "PASTE_YOUR_TOKEN_HERE",
   "channel_id": "585952222853201941",
   "max_messages": 5000,
   "output_dir": "reports",
@@ -53,48 +53,48 @@ Ouvre `config.json` :
 }
 ```
 
-### Obtenir son token Discord
+### Getting your Discord token
 
-1. Ouvre [discord.com](https://discord.com) dans le navigateur
-2. `F12` → onglet **Network** → filtre sur `/api/`
-3. Navigue dans Discord pour déclencher des requêtes
-4. Clique sur n'importe quelle requête `discord.com` → **En-têtes de la requête**
-5. Copie la valeur du header `Authorization`
+1. Open [discord.com](https://discord.com) in the browser
+2. `F12` → **Network** tab → filter on `/api/`
+3. Browse Discord to trigger requests
+4. Click any `discord.com` request → **Request headers**
+5. Copy the value of the `Authorization` header
 
-> ⚠️ Ne commite jamais `config.json` — il est dans le `.gitignore`.
+> ⚠️ Never commit `config.json` — it is in `.gitignore`.
 
 ---
 
-## Utilisation
+## Usage
 
-### 1. Télécharger les messages (une fois, puis à chaque mise à jour)
+### 1. Download the messages (once, then on each update)
 
 ```bash
 python main.py fetch
 ```
 
-Les messages sont mis en cache dans `data/messages.json`.
+Messages are cached in `data/messages.json`.
 
-### 2. Voir les versions disponibles
+### 2. List the available versions
 
 ```bash
 python main.py list
 ```
 
 ```
-Versions disponibles (3) :
+Available versions (3):
   4.7.0  →  EPTU: 4  PTU: 6  LIVE: 1  (11 patches)
   4.8.0  →  EPTU: 2  PTU: 5  LIVE: 1  (8 patches)
   ...
 ```
 
-### 3. Générer les rapports d'une version
+### 3. Generate the reports of a version
 
 ```bash
 python main.py generate 4.8.0
 ```
 
-### 4. Générer tous les rapports d'un coup
+### 4. Generate all reports at once
 
 ```bash
 python main.py all
@@ -102,54 +102,54 @@ python main.py all
 
 ---
 
-## Résultat
+## Output
 
 ```
 reports/
 └── 4.8.0/
-    ├── report_fr.md       ← Markdown français
-    ├── report_fr.html     ← HTML français (thème sombre)
-    ├── report_en.md       ← Markdown anglais
-    └── report_en.html     ← HTML anglais (thème sombre)
+    ├── report_fr.md       ← French Markdown
+    ├── report_fr.html     ← French HTML (dark theme)
+    ├── report_en.md       ← English Markdown
+    └── report_en.html     ← English HTML (dark theme)
 ```
 
-Chaque rapport contient :
+Each report contains:
 
-| Section | Contenu |
+| Section | Content |
 |---|---|
-| Table des matières | Liens vers chaque itération + synthèse |
-| Historique PTU/EPTU | Chaque patch avec ses sections et détails |
-| Synthèse finale | Tous les changements consolidés de la version |
+| Table of contents | Links to each iteration + summary |
+| PTU/EPTU history | Each patch with its sections and details |
+| Final summary | All consolidated changes of the version |
 
 ---
 
-## Structure du projet
+## Project structure
 
 ```
 sc-patchnotes/
-├── main.py              ← CLI principal
-├── config.json          ← Token + paramètres (gitignore)
+├── main.py              ← Main CLI
+├── config.json          ← Token + settings (gitignored)
 ├── requirements.txt
 ├── src/
-│   ├── fetcher.py       ← Appels Discord REST API
-│   ├── parser.py        ← Parsing des messages
-│   ├── generator.py     ← Génération MD + HTML
-│   └── i18n.py          ← Traductions FR/EN des sections
-├── data/                ← Cache brut (gitignore)
-└── reports/             ← Rapports générés (gitignore)
+│   ├── fetcher.py       ← Discord REST API calls
+│   ├── parser.py        ← Message parsing
+│   ├── generator.py     ← MD + HTML generation
+│   └── i18n.py          ← FR/EN section translations
+├── data/                ← Raw cache (gitignored)
+└── reports/             ← Generated reports (gitignored)
 ```
 
 ---
 
-## Workflow recommandé pour une nouvelle version
+## Recommended workflow for a new version
 
 ```bash
-# 1. Mettre à jour le cache quand des patches sortent
+# 1. Refresh the cache when patches are released
 python main.py fetch
 
-# 2. Vérifier que la version apparaît
+# 2. Check that the version appears
 python main.py list
 
-# 3. Générer les rapports
+# 3. Generate the reports
 python main.py generate 4.9.0
 ```
